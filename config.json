@@ -1,0 +1,7 @@
+{
+    "credentials":{
+        "username":"username",
+        "password":"password"
+    },
+    "admin_threads":["threadid1", "threadid2", "threadidn"]
+}

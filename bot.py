@@ -3,11 +3,8 @@
 from fbchat import Client, log
 from fbchat.models import *
 import csv
+import json
 import datetime
-
-admin_threads = ['LIST OF THREADS WITH PERMISSIONS TO MANAGE TESTS']
-USERNAME = "BOT FACEBOOK EMAIL"
-PASSWORD = "BOT FACEBOOK PASSWORD"
 
 class AdminBot(Client):
     def __init__(self, login, password):
@@ -95,8 +92,13 @@ class AdminBot(Client):
             return True
         else:
             super(type(self), self).onMessage(author_id=author_id, message=message, thread_id=thread_id, thread_type=thread_type, **kwargs)
-
-if __name__ == "__main__":
+def run():
+    with open("config.json", "r") as cfg:
+        config = json.load(cfg)
+    admin_threads = config['admin_threads']
+    USERNAME = config['credentials']['username']
+    PASSWORD = config['credentials']['password']
+    config = None
     while True:
         client = AdminBot(USERNAME, PASSWORD)
         print('Bot ID {} started working'.format(client.uid))
