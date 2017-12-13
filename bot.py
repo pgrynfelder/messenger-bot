@@ -10,7 +10,7 @@ class AdminBot(Client):
     def __init__(self, login, password):
         Client.__init__(self, login, password)
         self.antispam = datetime.datetime.now() - datetime.timedelta(minutes=5)
-        
+
     def onMessage(self, author_id, message, thread_id, thread_type, **kwargs):
         now = datetime.datetime.now()
         if author_id == self.uid:
@@ -22,10 +22,10 @@ class AdminBot(Client):
             self.sendMessage("Schemat czyszczenia bazy danych to: !clear ; wyczyszczone zostaną wszystkie dane nie będące w miesiącach -1 do +2", thread_id=thread_id, thread_type=thread_type)
 
         # ADDING A TEST
-        elif message.split(" ")[0] == "!add":
+        elif message.split(" ")[0] == "!add" and thread_id in admin_threads:
             params = message.replace("!add ", "").replace(" ;", ";").replace("; ", ";")
             params = params.split(";")
-            
+
             if len(params) < 4:
                 self.sendMessage("Wprowadzono za mało parametrów.", thread_id=thread_id, thread_type=thread_type)
                 self.sendMessage("Wpisz !help by otrzymać pomoc.", thread_id=thread_id, thread_type=thread_type)
@@ -49,11 +49,11 @@ class AdminBot(Client):
             with open('data.csv', 'a', newline='') as file:
                 writer = csv.writer(file, delimiter=';')
                 writer.writerow(params)
-                              
+
             self.sendMessage("Pomyślnie dodano test.", thread_id=thread_id, thread_type=thread_type)
             print("Test added by {} in {} (GROUP): {}".format(author_id, thread_id, message))
             return True
-        
+
         elif message == '!clear' and thread_id in admin_threads:
             data = []
             with open('data.csv', 'r', newline='') as file:
@@ -68,7 +68,7 @@ class AdminBot(Client):
             self.sendMessage("Testy wcześniejsze niż 14 dni temu zostały usunięte.", thread_id=thread_id, thread_type=thread_type)
             print("Tests older than 14 days have been deleted")
             return True
-        
+
         elif "sprawdzian" in message:
             if self.antispam > now - datetime.timedelta(minutes=5):
                 print("Not informed {} about tests! (antispam is active)".format(thread_id))
@@ -105,4 +105,5 @@ def run():
         client.listen()
         input()
         client.logout()
-        
+
+run()
