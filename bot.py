@@ -69,7 +69,7 @@ class AdminBot(Client):
             self.sendMessage("Testy wcześniejsze niż 14 dni temu zostały usunięte.", thread_id=thread_id, thread_type=thread_type)
             print("Tests older than 14 days have been deleted")
             return True
-        elif message == '!killbot':
+        elif message == '!killbot' and thread_id in self.admin_threads:
             raise Exception("Killed!")
         elif "sprawdzian" in message:
             if self.antispam > now - datetime.timedelta(minutes=5) and message != "!sprawdziany":
