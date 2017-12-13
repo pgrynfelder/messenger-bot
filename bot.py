@@ -7,7 +7,8 @@ import json
 import datetime
 
 class AdminBot(Client):
-    def __init__(self, login, password):
+    def __init__(self, login, password, admin_threads):
+        self.admin_threads = admin_threads
         Client.__init__(self, login, password)
         self.antispam = datetime.datetime.now() - datetime.timedelta(minutes=5)
 
@@ -15,14 +16,14 @@ class AdminBot(Client):
         now = datetime.datetime.now()
         if author_id == self.uid:
             super(type(self), self).onMessage(author_id=author_id, message=message, thread_id=thread_id, thread_type=thread_type, **kwargs)
-        elif message == '!help' and thread_id in admin_threads:
+        elif message == '!help' and thread_id in self.admin_threads:
             print("Demand for help from {} in {} (GROUP): !help".format(author_id, thread_id))
             self.sendMessage("Witaj w pomocy!", thread_id=thread_id, thread_type=thread_type)
             self.sendMessage("Schemat dodawania sprawdzianu to: !add PRZEDMIOT; DZIEŃ; MIESIĄC; TEMAT; ew. zagadnienia;", thread_id=thread_id, thread_type=thread_type)
             self.sendMessage("Schemat czyszczenia bazy danych to: !clear ; wyczyszczone zostaną wszystkie dane nie będące w miesiącach -1 do +2", thread_id=thread_id, thread_type=thread_type)
 
         # ADDING A TEST
-        elif message.split(" ")[0] == "!add" and thread_id in admin_threads:
+        elif message.split(" ")[0] == "!add" and thread_id in self.admin_threads:
             params = message.replace("!add ", "").replace(" ;", ";").replace("; ", ";")
             params = params.split(";")
 
@@ -54,7 +55,7 @@ class AdminBot(Client):
             print("Test added by {} in {} (GROUP): {}".format(author_id, thread_id, message))
             return True
 
-        elif message == '!clear' and thread_id in admin_threads:
+        elif message == '!clear' and thread_id in self.admin_threads:
             data = []
             with open('data.csv', 'r', newline='') as file:
                 reader = csv.reader(file, delimiter=';')
@@ -68,7 +69,8 @@ class AdminBot(Client):
             self.sendMessage("Testy wcześniejsze niż 14 dni temu zostały usunięte.", thread_id=thread_id, thread_type=thread_type)
             print("Tests older than 14 days have been deleted")
             return True
-
+        elif message == '!killbot':
+            raise Exception("Killed!")
         elif "sprawdzian" in message:
             if self.antispam > now - datetime.timedelta(minutes=5):
                 print("Not informed {} about tests! (antispam is active)".format(thread_id))
@@ -99,11 +101,9 @@ def run():
     USERNAME = config['credentials']['username']
     PASSWORD = config['credentials']['password']
     config = None
-    while True:
-        client = AdminBot(USERNAME, PASSWORD)
-        print('Bot ID {} started working'.format(client.uid))
-        client.listen()
-        input()
-        client.logout()
+    client = AdminBot(USERNAME, PASSWORD, admin_threads)
+    print('Bot ID {} started working'.format(client.uid))
+    client.listen()
+    client.logout()
 
 run()
