@@ -94,7 +94,7 @@ class AdminBot(Client):
             return True
         else:
             super(type(self), self).onMessage(author_id=author_id, message=message, thread_id=thread_id, thread_type=thread_type, **kwargs)
-def run():
+def main():
     with open("config.json", "r") as cfg:
         config = json.load(cfg)
     admin_threads = config['admin_threads']
@@ -106,4 +106,6 @@ def run():
     client.listen()
     client.logout()
 
-run()
+if __name__ == '__main__':
+    main()
+    
