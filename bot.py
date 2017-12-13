@@ -60,7 +60,7 @@ class AdminBot(Client):
             with open('data.csv', 'r', newline='') as file:
                 reader = csv.reader(file, delimiter=';')
                 for row in reader:
-                    if datetime.datetime.strptime("{} {} {}".format(row[1], row[2], row[3]), "%d %m %Y") < now - datetime.timedelta(days=14):
+                    if datetime.datetime.strptime("{} {} {}".format(row[1], row[2], row[3]), "%d %m %Y") > now - datetime.timedelta(days=14):
                         data.append(row)
             with open('data.csv', 'w', newline='') as file:
                 writer = csv.writer(file, delimiter=';')
@@ -72,7 +72,7 @@ class AdminBot(Client):
         elif message == '!killbot':
             raise Exception("Killed!")
         elif "sprawdzian" in message:
-            if self.antispam > now - datetime.timedelta(minutes=5):
+            if self.antispam > now - datetime.timedelta(minutes=5) and message != "!sprawdziany":
                 print("Not informed {} about tests! (antispam is active)".format(thread_id))
                 return False
             self.antispam = now
@@ -108,4 +108,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-    
