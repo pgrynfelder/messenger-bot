@@ -7,15 +7,15 @@ import json
 import datetime
 
 class AdminBot(Client):
-    def __init__(self, login, password, admin_threads):
+
+    admin_threads = []
+    def set_admins(admin_threads):
         self.admin_threads = admin_threads
-        Client.__init__(self, login, password)
-        self.antispam = datetime.datetime.now() - datetime.timedelta(minutes=5)
 
     def onMessage(self, author_id, message, thread_id, thread_type, **kwargs):
         now = datetime.datetime.now()
         if author_id == self.uid:
-            super(type(self), self).onMessage(author_id=author_id, message=message, thread_id=thread_id, thread_type=thread_type, **kwargs)
+            super().onMessage(author_id=author_id, message=message, thread_id=thread_id, thread_type=thread_type, **kwargs)
         elif message == '!help' and thread_id in self.admin_threads:
             print("Demand for help from {} in {} (GROUP): !help".format(author_id, thread_id))
             self.sendMessage("Witaj w pomocy!", thread_id=thread_id, thread_type=thread_type)
@@ -72,7 +72,7 @@ class AdminBot(Client):
         elif message == '!killbot' and thread_id in self.admin_threads:
             raise Exception("Killed!")
         elif "sprawdzian" in message:
-            if self.antispam > now - datetime.timedelta(minutes=5) and message != "!sprawdziany":
+            if self.antispam and self.antispam > now - datetime.timedelta(minutes=5) and message != "!sprawdziany":
                 print("Not informed {} about tests! (antispam is active)".format(thread_id))
                 return False
             self.antispam = now
@@ -95,13 +95,24 @@ class AdminBot(Client):
         else:
             super(type(self), self).onMessage(author_id=author_id, message=message, thread_id=thread_id, thread_type=thread_type, **kwargs)
 def main():
-    with open("config.json", "r") as cfg:
-        config = json.load(cfg)
+    try:
+        with open("config.json", "r") as cfg:
+            config = json.load(cfg)
+    except FileNotFoundError:
+        with open("config.json", "w+") as cfg:
+            config = {
+            'credentials':{'username':'',
+                           'password':''},
+            'admin_threads':[]
+            }
+            json.dump(config, cfg)
+            raise Exception("Haven't found a config file, created a new one")
     admin_threads = config['admin_threads']
     USERNAME = config['credentials']['username']
     PASSWORD = config['credentials']['password']
     config = None
-    client = AdminBot(USERNAME, PASSWORD, admin_threads)
+    client = AdminBot(USERNAME, PASSWORD)
+    client.set_admins(admin_threads)
     print('Bot ID {} started working'.format(client.uid))
     client.listen()
     client.logout()
