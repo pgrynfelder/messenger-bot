@@ -3,32 +3,30 @@
 from fbchat import Client, log
 from fbchat.models import *
 import csv
+import json
 import datetime
 
-admin_threads = ['LIST OF THREADS WITH PERMISSIONS TO MANAGE TESTS']
-USERNAME = "BOT FACEBOOK EMAIL"
-PASSWORD = "BOT FACEBOOK PASSWORD"
-
 class AdminBot(Client):
-    def __init__(self, login, password):
+    def __init__(self, login, password, admin_threads):
+        self.admin_threads = admin_threads
         Client.__init__(self, login, password)
         self.antispam = datetime.datetime.now() - datetime.timedelta(minutes=5)
-        
+
     def onMessage(self, author_id, message, thread_id, thread_type, **kwargs):
         now = datetime.datetime.now()
         if author_id == self.uid:
             super(type(self), self).onMessage(author_id=author_id, message=message, thread_id=thread_id, thread_type=thread_type, **kwargs)
-        elif message == '!help' and thread_id in admin_threads:
+        elif message == '!help' and thread_id in self.admin_threads:
             print("Demand for help from {} in {} (GROUP): !help".format(author_id, thread_id))
             self.sendMessage("Witaj w pomocy!", thread_id=thread_id, thread_type=thread_type)
             self.sendMessage("Schemat dodawania sprawdzianu to: !add PRZEDMIOT; DZIEŃ; MIESIĄC; TEMAT; ew. zagadnienia;", thread_id=thread_id, thread_type=thread_type)
             self.sendMessage("Schemat czyszczenia bazy danych to: !clear ; wyczyszczone zostaną wszystkie dane nie będące w miesiącach -1 do +2", thread_id=thread_id, thread_type=thread_type)
 
         # ADDING A TEST
-        elif message.split(" ")[0] == "!add":
+        elif message.split(" ")[0] == "!add" and thread_id in self.admin_threads:
             params = message.replace("!add ", "").replace(" ;", ";").replace("; ", ";")
             params = params.split(";")
-            
+
             if len(params) < 4:
                 self.sendMessage("Wprowadzono za mało parametrów.", thread_id=thread_id, thread_type=thread_type)
                 self.sendMessage("Wpisz !help by otrzymać pomoc.", thread_id=thread_id, thread_type=thread_type)
@@ -52,17 +50,17 @@ class AdminBot(Client):
             with open('data.csv', 'a', newline='') as file:
                 writer = csv.writer(file, delimiter=';')
                 writer.writerow(params)
-                              
+
             self.sendMessage("Pomyślnie dodano test.", thread_id=thread_id, thread_type=thread_type)
             print("Test added by {} in {} (GROUP): {}".format(author_id, thread_id, message))
             return True
-        
-        elif message == '!clear' and thread_id in admin_threads:
+
+        elif message == '!clear' and thread_id in self.admin_threads:
             data = []
             with open('data.csv', 'r', newline='') as file:
                 reader = csv.reader(file, delimiter=';')
                 for row in reader:
-                    if datetime.datetime.strptime("{} {} {}".format(row[1], row[2], row[3]), "%d %m %Y") < now - datetime.timedelta(days=14):
+                    if datetime.datetime.strptime("{} {} {}".format(row[1], row[2], row[3]), "%d %m %Y") > now - datetime.timedelta(days=14):
                         data.append(row)
             with open('data.csv', 'w', newline='') as file:
                 writer = csv.writer(file, delimiter=';')
@@ -71,9 +69,10 @@ class AdminBot(Client):
             self.sendMessage("Testy wcześniejsze niż 14 dni temu zostały usunięte.", thread_id=thread_id, thread_type=thread_type)
             print("Tests older than 14 days have been deleted")
             return True
-        
+        elif message == '!killbot' and thread_id in self.admin_threads:
+            raise Exception("Killed!")
         elif "sprawdzian" in message:
-            if self.antispam > now - datetime.timedelta(minutes=5):
+            if self.antispam > now - datetime.timedelta(minutes=5) and message != "!sprawdziany":
                 print("Not informed {} about tests! (antispam is active)".format(thread_id))
                 return False
             self.antispam = now
@@ -95,12 +94,17 @@ class AdminBot(Client):
             return True
         else:
             super(type(self), self).onMessage(author_id=author_id, message=message, thread_id=thread_id, thread_type=thread_type, **kwargs)
+def main():
+    with open("config.json", "r") as cfg:
+        config = json.load(cfg)
+    admin_threads = config['admin_threads']
+    USERNAME = config['credentials']['username']
+    PASSWORD = config['credentials']['password']
+    config = None
+    client = AdminBot(USERNAME, PASSWORD, admin_threads)
+    print('Bot ID {} started working'.format(client.uid))
+    client.listen()
+    client.logout()
 
-if __name__ == "__main__":
-    while True:
-        client = AdminBot(USERNAME, PASSWORD)
-        print('Bot ID {} started working'.format(client.uid))
-        client.listen()
-        input()
-        client.logout()
-        
+if __name__ == '__main__':
+    main()
