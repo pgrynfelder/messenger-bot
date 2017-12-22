@@ -18,7 +18,7 @@ STATIC = {
         "ERROR_INVALID_DATE": "Wprowadzona data jest niepoprawna.",
         "TEST_ADD_SUCCESS": "Pomyślnie dodano test.",
         "TEST_CLEAR_2W_SUCCESS": "Testy wcześniejsze niż 14 dni temu zostały usunięte.",
-
+        "MARKOV_RESULT": "{user}: {result}"
     }
 }
 
@@ -42,18 +42,21 @@ class AdminBot(Client):
                 send(string.format(*format_args, **format_kwargs))
         kwargs.update({"helper_send_functions": [send, send_static, send_static_list]})
         now = datetime.datetime.now()
-        if author_id == self.uid: #???
+        comargs = (author_id, message, thread_id, thread_type)
+        if author_id == self.uid:
             return super().onMessage(author_id=author_id, message=message, thread_id=thread_id, thread_type=thread_type, **kwargs)
         elif message == '!help' and thread_id in self.admin_threads:
-            return self.show_help(author_id, message, thread_id, thread_type, **kwargs)
-        elif message.split()[0] == "!add" and thread_id in self.admin_threads:
-            return self.add_test(author_id, message, thread_id, thread_type, **kwargs)
+            return self.show_help(*comargs, **kwargs)
+        elif message.startswith("!add") and thread_id in self.admin_threads:
+            return self.add_test(*comargs, **kwargs)
         elif message == '!clear' and thread_id in self.admin_threads:
-            return self.clear_tests(author_id, message, thread_id, thread_type, **kwargs)
+            return self.clear_tests(*comargs, **kwargs)
+        elif "sprawdzian" in message and thread_id in self.admin_threads:
+            return self.test_inform(*comargs, **kwargs)
+        elif message.startswith("!markov") and thread_id in self.admin_threads:
+            return self.run_markov(*comargs, **kwargs)
         elif message == '!killbot' and thread_id in self.admin_threads:
             raise BotExit("Killed: {}, \"{}\", {}, {}".format(author_id, message, thread_id, thread_type))
-        elif "sprawdzian" in message:
-            return self.test_inform(author_id, message, thread_id, thread_type, **kwargs)
         else:
             super().onMessage(author_id=author_id, message=message, thread_id=thread_id, thread_type=thread_type, **kwargs)
 
@@ -64,8 +67,7 @@ class AdminBot(Client):
 
     def add_test(self, author_id, message, thread_id, thread_type, **kwargs):
         send, send_static, send_static_list = kwargs["helper_send_functions"]
-        params = message.replace("!add ", "").replace(" ;", ";").replace("; ", ";")
-        params = params.split(";")
+        params = [p.strip() for p in message.split(";")[1:]]
         if len(params) < 4:
             send_static("ERROR_NOT_ENOUGH_PARAMS")
             send_static("HELP_SUGGESTION")
@@ -128,13 +130,19 @@ class AdminBot(Client):
         #print(now, self.last_sent_time)
         return True
 
+    def run_markov(self, author_id, message, thread_id, thread_type, **kwargs):
+        send, send_static, send_static_list = kwargs["helper_send_functions"]
+        target = message[len("!markov"):].strip()
+        result = ""
+        send_static(MARKOV_RESULT, target, result)
+
+
 def main():
     with open("config.json", "r") as config_file:
         config = json.load(config_file)
     admin_threads = config['admin_threads']
     USERNAME = config['credentials']['username']
     PASSWORD = config['credentials']['password']
-    config = None #????
     client = AdminBot(USERNAME, PASSWORD, admin_threads)
     print('Bot ID {} started working'.format(client.uid))
     client.listen()
