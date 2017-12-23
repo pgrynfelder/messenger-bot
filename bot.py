@@ -26,9 +26,10 @@ class BotExit(Exception):
     pass
 
 class AdminBot(Client):
+  
     def __init__(self, login, password, admin_threads, *, language="PL"):
         self.admin_threads = admin_threads
-        Client.__init__(self, login, password)
+        super().__init__(self, login, password)
         self.language = language
         self.last_sent_time = datetime.datetime.now() - datetime.timedelta(minutes=5)
 
@@ -135,7 +136,6 @@ class AdminBot(Client):
         target = message[len("!markov"):].strip()
         result = ""
         send_static(MARKOV_RESULT, target, result)
-
 
 def main():
     with open("config.json", "r") as config_file:
