@@ -11,7 +11,7 @@ STATIC = {
         "HELP_MESSAGE_LIST": [
             "Witaj w pomocy!",
             "Dodawanie sprawdzianu: !add <przedmiot>; <dzień>; <miesiąc>; <temat (ew. zagadnienia)>",
-            "Czyszczenia bazy danych: !clear - wyczyszczone zostaną wszystkie dane nie będące w miesiącach -1 do +2"
+            "Czyszczenia bazy danych: !clear - wyczyszczone zostaną wszystkie dane starsze niż 14 dni"
         ],
         "HELP_SUGGESTION": "Wpisz !help by otrzymać pomoc.",
         "ERROR_NOT_ENOUGH_PARAMS": "Wprowadzono za mało parametrów.",
@@ -26,7 +26,7 @@ class BotExit(Exception):
     pass
 
 class AdminBot(Client):
-  
+
     def __init__(self, login, password, admin_threads, *, language="PL"):
         self.admin_threads = admin_threads
         super().__init__(self, login, password)
@@ -64,7 +64,7 @@ class AdminBot(Client):
     def show_help(self, author_id, emssage, thread_id, thread_type, **kwargs):
         send, send_static, send_static_list = kwargs["helper_send_functions"]
         print("Demand for help from {} in {} (GROUP): !help".format(author_id, thread_id))
-        send_static_list("HELP_MESSAGE_LIST")       
+        send_static_list("HELP_MESSAGE_LIST")
 
     def add_test(self, author_id, message, thread_id, thread_type, **kwargs):
         send, send_static, send_static_list = kwargs["helper_send_functions"]
