@@ -1,6 +1,6 @@
 # -*- coding: UTF-8 -*-
 
-from fbchat import Client, log
+from fbchat import Client, logging
 from fbchat.models import *
 import csv
 import json
@@ -27,9 +27,9 @@ class BotExit(Exception):
 
 class AdminBot(Client):
 
-    def __init__(self, login, password, admin_threads, *, language="PL"):
+    def __init__(self, login, password, admin_threads, *, language="PL", logging_level=logging.INFO):
         self.admin_threads = admin_threads
-        super().__init__(self, login, password)
+        super().__init__(login, password, logging_level=logging_level)
         self.language = language
         self.last_sent_time = datetime.datetime.now() - datetime.timedelta(minutes=5)
 
@@ -39,32 +39,37 @@ class AdminBot(Client):
         def send_static(name, *format_args, **format_kwargs):
             return send(STATIC[self.language][name].format(*format_args, **format_kwargs))
         def send_static_list(list_name, *format_args, **format_kwargs):
-            for string in STATIC[self.language][name]:
+            for string in STATIC[self.language][list_name]:
                 send(string.format(*format_args, **format_kwargs))
+        kwargs_c = kwargs.copy()
         kwargs.update({"helper_send_functions": [send, send_static, send_static_list]})
         now = datetime.datetime.now()
         comargs = (author_id, message, thread_id, thread_type)
-        if author_id == self.uid:
-            return super().onMessage(author_id=author_id, message=message, thread_id=thread_id, thread_type=thread_type, **kwargs)
-        elif message == '!help' and thread_id in self.admin_threads:
-            return self.show_help(*comargs, **kwargs)
-        elif message.startswith("!add") and thread_id in self.admin_threads:
-            return self.add_test(*comargs, **kwargs)
-        elif message == '!clear' and thread_id in self.admin_threads:
-            return self.clear_tests(*comargs, **kwargs)
-        elif "sprawdzian" in message and thread_id in self.admin_threads:
-            return self.test_inform(*comargs, **kwargs)
-        elif message.startswith("!markov") and thread_id in self.admin_threads:
-            return self.run_markov(*comargs, **kwargs)
-        elif message == '!killbot' and thread_id in self.admin_threads:
-            raise BotExit("Killed: {}, \"{}\", {}, {}".format(author_id, message, thread_id, thread_type))
-        else:
-            super().onMessage(author_id=author_id, message=message, thread_id=thread_id, thread_type=thread_type, **kwargs)
+        if author_id != self.uid:
+            if "sprawdzian" in message:
+                return self.test_inform(*comargs, **kwargs)
+            elif message.startswith("!markov"):
+                return self.run_markov(*comargs, **kwargs)
+            elif has_admin_permissions(*comargs, **kwargs):
+                if message == '!help':
+                    return self.show_help(*comargs, **kwargs)
+                elif message.startswith("!add"):
+                    return self.add_test(*comargs, **kwargs)
+                elif message == '!clear':
+                    return self.clear_tests(*comargs, **kwargs)
+                elif message == '!killbot':
+                    self.logout()
+                    raise BotExit("Killed: {}, \"{}\", {}, {}".format(author_id, message, thread_id, thread_type))
+        return super().onMessage(author_id=author_id, message=message, thread_id=thread_id, thread_type=thread_type, **kwargs_c)
+
+    def has_admin_permissions(self, author_id, message, thread_id, thread_type, **kwargs):
+        return thread_id in self.admin_threads
 
     def show_help(self, author_id, emssage, thread_id, thread_type, **kwargs):
         send, send_static, send_static_list = kwargs["helper_send_functions"]
         print("Demand for help from {} in {} (GROUP): !help".format(author_id, thread_id))
         send_static_list("HELP_MESSAGE_LIST")
+        return True
 
     def add_test(self, author_id, message, thread_id, thread_type, **kwargs):
         send, send_static, send_static_list = kwargs["helper_send_functions"]
@@ -85,7 +90,6 @@ class AdminBot(Client):
             date = date.replace(year=now.year, hour=23, minute=59)
         if date < now:
             date = date.replace(year=now.year+1)
-        #print(now, "<", date)
         params[1], params[2], params[3] = date.strftime("%d;%m;%Y").split(";")
         with open('data.csv', 'a', newline='') as file:
             writer = csv.writer(file, delimiter=';')
@@ -112,10 +116,10 @@ class AdminBot(Client):
 
     def test_inform(self, author_id, message, thread_id, thread_type, **kwargs):
         send, send_static, send_static_list = kwargs["helper_send_functions"]
-        if self.last_sent_time > now - datetime.timedelta(minutes=5) and message != "!sprawdziany":
+        if self.last_sent_time > datetime.datetime.now() - datetime.timedelta(minutes=5) and message != "!sprawdziany":
             print("Not informed {} about tests! (antispam is active)".format(thread_id))
             return False
-        self.last_sent_time = now
+        self.last_sent_time = datetime.datetime.now()
         data = []
         with open('data.csv', 'r', newline='') as file:
             reader = csv.reader(file, delimiter=';')
@@ -128,7 +132,6 @@ class AdminBot(Client):
         data = "\n".join(data)
         send(data)
         print("Informed {} about tests!".format(thread_id))
-        #print(now, self.last_sent_time)
         return True
 
     def run_markov(self, author_id, message, thread_id, thread_type, **kwargs):
@@ -136,6 +139,7 @@ class AdminBot(Client):
         target = message[len("!markov"):].strip()
         result = ""
         send_static(MARKOV_RESULT, target, result)
+        return True
 
 def main():
     with open("config.json", "r") as config_file:
@@ -143,7 +147,7 @@ def main():
     admin_threads = config['admin_threads']
     USERNAME = config['credentials']['username']
     PASSWORD = config['credentials']['password']
-    client = AdminBot(USERNAME, PASSWORD, admin_threads)
+    client = AdminBot(USERNAME, PASSWORD, admin_threads, logging_level=logging.DEBUG)
     print('Bot ID {} started working'.format(client.uid))
     client.listen()
     client.logout()
