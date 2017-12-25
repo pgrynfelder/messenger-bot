@@ -18,6 +18,7 @@ STATIC = {
         "ERROR_INVALID_DATE": "Wprowadzona data jest niepoprawna.",
         "TEST_ADD_SUCCESS": "Pomyślnie dodano test.",
         "TEST_CLEAR_2W_SUCCESS": "Testy wcześniejsze niż 14 dni temu zostały usunięte.",
+        "INFORMATION_HEADER": "--- Sprawdziany na 30 dni ---\nprzedmiot; dzień; miesiąc; temat\n",
         "MARKOV_RESULT": "{user}: {result}"
     }
 }
@@ -41,7 +42,7 @@ class AdminBot(Client):
         def send_static_list(list_name, *format_args, **format_kwargs):
             for string in STATIC[self.language][list_name]:
                 send(string.format(*format_args, **format_kwargs))
-        def has_admin_permissions(self, author_id, message, thread_id, thread_type, **kwargs):
+        def has_admin_permissions(author_id, message, thread_id, thread_type, **kwargs):
             return thread_id in self.admin_threads
         kwargs_c = kwargs.copy()
         kwargs.update({"helper_send_functions": [send, send_static, send_static_list]})
@@ -127,7 +128,7 @@ class AdminBot(Client):
                     data.append(row)
         data.sort(key=lambda row: datetime.datetime.strptime("{} {} {}".format(row[1], row[2], row[3]), "%d %m %Y"), reverse=False)
         data = ["• " + " • ".join(row[:3] + row[4:]) for row in data]
-        data.insert(0, "--- Sprawdziany na 30 dni ---\nprzedmiot; dzień; miesiąc; temat\n")
+        data.insert(0, STATIC[self.language]["INFORMATION_HEADER"])
         data = "\n".join(data)
         send(data)
         print("Informed {} about tests!".format(thread_id))
