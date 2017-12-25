@@ -18,7 +18,7 @@ STATIC = {
         "ERROR_INVALID_DATE": "Wprowadzona data jest niepoprawna.",
         "TEST_ADD_SUCCESS": "Pomyślnie dodano test.",
         "TEST_CLEAR_2W_SUCCESS": "Testy wcześniejsze niż 14 dni temu zostały usunięte.",
-        "INFORMATION_HEADER": "--- Sprawdziany na 30 dni ---\nprzedmiot; dzień; miesiąc; temat\n",
+        "INFORMATION_HEADER": "--- Sprawdziany na 30 dni ---\n",
         "MARKOV_RESULT": "{user}: {result}",
         "KILLED": "Bot został wyłączony."
     }
@@ -47,7 +47,6 @@ class AdminBot(Client):
             return thread_id in self.admin_threads
         kwargs_c = kwargs.copy()
         kwargs.update({"helper_send_functions": [send, send_static, send_static_list]})
-        now = datetime.datetime.now()
         comargs = (author_id, message, thread_id, thread_type)
         if author_id != self.uid:
             if "sprawdzian" in message:
@@ -75,7 +74,7 @@ class AdminBot(Client):
 
     def add_test(self, author_id, message, thread_id, thread_type, **kwargs):
         send, send_static, send_static_list = kwargs["helper_send_functions"]
-        params = [p.strip() for p in message.split(";")[1:]]
+        params = [p.strip() for p in message[4:].split(";")]
         if len(params) < 4:
             send_static("ERROR_NOT_ENOUGH_PARAMS")
             send_static("HELP_SUGGESTION")
@@ -88,10 +87,10 @@ class AdminBot(Client):
             send_static("ERROR_INVALID_DATE")
             print("Failed to add test by {} in {} (GROUP): {}".format(author_id, thread_id, message))
             return False
-        if date < now:
-            date = date.replace(year=now.year, hour=23, minute=59)
-        if date < now:
-            date = date.replace(year=now.year+1)
+        if date < datetime.datetime.now():
+            date = date.replace(year=datetime.datetime.now().year, hour=23, minute=59)
+        if date < datetime.datetime.now():
+            date = date.replace(year=datetime.datetime.now().year+1)
         params[1], params[2], params[3] = date.strftime("%d;%m;%Y").split(";")
         with open('data.csv', 'a', newline='') as file:
             writer = csv.writer(file, delimiter=';')
@@ -106,7 +105,7 @@ class AdminBot(Client):
         with open('data.csv', 'r', newline='') as file:
             reader = csv.reader(file, delimiter=';')
             for row in reader:
-                if datetime.datetime.strptime("{} {} {}".format(row[1], row[2], row[3]), "%d %m %Y") > now - datetime.timedelta(days=14):
+                if datetime.datetime.strptime("{} {} {}".format(row[1], row[2], row[3]), "%d %m %Y") > datetime.datetime.now() - datetime.timedelta(days=14):
                     data.append(row)
         with open('data.csv', 'w', newline='') as file:
             writer = csv.writer(file, delimiter=';')
@@ -126,7 +125,7 @@ class AdminBot(Client):
         with open('data.csv', 'r', newline='') as file:
             reader = csv.reader(file, delimiter=';')
             for row in reader:
-                if datetime.datetime.strptime("{} {} {}".format(row[1], row[2], row[3]), "%d %m %Y") < now + datetime.timedelta(days=30):
+                if datetime.datetime.strptime("{} {} {}".format(row[1], row[2], row[3]), "%d %m %Y") < datetime.datetime.now() + datetime.timedelta(days=30) and datetime.datetime.strptime("{} {} {}".format(row[1], row[2], row[3]), "%d %m %Y") > datetime.datetime.now():
                     data.append(row)
         data.sort(key=lambda row: datetime.datetime.strptime("{} {} {}".format(row[1], row[2], row[3]), "%d %m %Y"), reverse=False)
         data = ["• " + " • ".join(row[:3] + row[4:]) for row in data]
