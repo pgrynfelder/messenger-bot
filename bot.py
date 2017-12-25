@@ -150,7 +150,6 @@ def main():
     client = AdminBot(USERNAME, PASSWORD, admin_threads, logging_level=logging.DEBUG)
     print('Bot ID {} started working'.format(client.uid))
     client.listen()
-    client.logout()
 
 if __name__ == '__main__':
     main()
