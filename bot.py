@@ -41,6 +41,8 @@ class AdminBot(Client):
         def send_static_list(list_name, *format_args, **format_kwargs):
             for string in STATIC[self.language][list_name]:
                 send(string.format(*format_args, **format_kwargs))
+        def has_admin_permissions(self, author_id, message, thread_id, thread_type, **kwargs):
+            return thread_id in self.admin_threads
         kwargs_c = kwargs.copy()
         kwargs.update({"helper_send_functions": [send, send_static, send_static_list]})
         now = datetime.datetime.now()
@@ -61,9 +63,6 @@ class AdminBot(Client):
                     self.logout()
                     raise BotExit("Killed: {}, \"{}\", {}, {}".format(author_id, message, thread_id, thread_type))
         return super().onMessage(author_id=author_id, message=message, thread_id=thread_id, thread_type=thread_type, **kwargs_c)
-
-    def has_admin_permissions(self, author_id, message, thread_id, thread_type, **kwargs):
-        return thread_id in self.admin_threads
 
     def show_help(self, author_id, emssage, thread_id, thread_type, **kwargs):
         send, send_static, send_static_list = kwargs["helper_send_functions"]
