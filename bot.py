@@ -19,7 +19,8 @@ STATIC = {
         "TEST_ADD_SUCCESS": "Pomyślnie dodano test.",
         "TEST_CLEAR_2W_SUCCESS": "Testy wcześniejsze niż 14 dni temu zostały usunięte.",
         "INFORMATION_HEADER": "--- Sprawdziany na 30 dni ---\nprzedmiot; dzień; miesiąc; temat\n",
-        "MARKOV_RESULT": "{user}: {result}"
+        "MARKOV_RESULT": "{user}: {result}",
+        "KILLED": "Bot został wyłączony."
     }
 }
 
@@ -61,6 +62,7 @@ class AdminBot(Client):
                 elif message == '!clear':
                     return self.clear_tests(*comargs, **kwargs)
                 elif message == '!killbot':
+                    send_static("KILLED")
                     self.logout()
                     raise BotExit("Killed: {}, \"{}\", {}, {}".format(author_id, message, thread_id, thread_type))
         return super().onMessage(author_id=author_id, message=message, thread_id=thread_id, thread_type=thread_type, **kwargs_c)
