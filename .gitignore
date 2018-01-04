@@ -1,3 +1,2 @@
-.ftpconfig
-.flake8
+.*
 *.json
