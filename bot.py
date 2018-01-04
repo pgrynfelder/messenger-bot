@@ -1,8 +1,6 @@
 # -*- coding: UTF-8 -*-
 
 from fbchat import Client, logging
-# from fbchat.models import *
-import csv
 import json
 import datetime
 
@@ -10,15 +8,17 @@ STATIC = {
     "PL": {
         "HELP_MESSAGE_LIST": [
             "Witaj w pomocy!",
-            "Dodawanie sprawdzianu: !add <przedmiot>; <dzień>; <miesiąc>; <temat (ew. zagadnienia)>",
-            "Czyszczenia bazy danych: !clear - wyczyszczone zostaną wszystkie dane starsze niż 14 dni"
+            "Dodawanie sprawdzianu: !add <dd.mm>; <przedmiot>; <temat (ew. zagadnienia)>",
+            "Czyszczenia bazy danych: !clear <dni>; <potwierdzenie: sure>- wyczyszczone zostaną wszystkie dane starsze niż dana ilość dni",
+            "https://github.com/pitek1/messenger-bot/"
         ],
         "HELP_SUGGESTION": "Wpisz !help by otrzymać pomoc.",
-        "ERROR_NOT_ENOUGH_PARAMS": "Wprowadzono za mało parametrów.",
+        "ERROR_PARAMS_COUNT": "Wprowadzono złą ilość parametrów.",
         "ERROR_INVALID_DATE": "Wprowadzona data jest niepoprawna.",
         "TEST_ADD_SUCCESS": "Pomyślnie dodano test.",
-        "TEST_CLEAR_2W_SUCCESS": "Testy wcześniejsze niż 14 dni temu zostały usunięte.",
-        "TEST_INFORM": "--- Sprawdziany na 30 dni ---\n\n{data}",
+        "TEST_INFORM_NONE": "• Sprawdziany na 30 dni\n\nYaaay, w najbliższym czasie nie ma żadnych sprawdzianów!",
+        "DB_CLEAR_SUCCESS": "Testy wcześniejsze niż {days} dni temu zostały usunięte.",
+        "TEST_INFORM": "• Sprawdziany na 30 dni\n\n{data}",
         "MARKOV_RESULT": "{user}: {result}",
         "KILLED": "Bot został wyłączony."
     }
@@ -119,17 +119,17 @@ class AdminBot(Client):
                       send, send_static, send_static_list]})
         comargs = (author_id, message, thread_id, thread_type)
         if author_id != self.uid:
-            if message.startswith("!markov") and has_permission(author_id, 'markov'):
+            if message.startswith("!markov ") and has_permission(author_id, 'markov'):
                 return self.run_markov(*comargs, **kwargs)
             elif message == '!help' and has_permission(author_id, 'help'):
                 return self.show_help(*comargs, **kwargs)
-            elif message.startswith("!add") and has_permission(author_id, 'exam.add'):
+            elif message.startswith("!add ") and has_permission(author_id, 'exam.add'):
                 return self.add_exam(*comargs, **kwargs)
-            elif message.startswith("!delete") and has_permission(author_id, 'exam.delete'):
+            elif message.startswith("!delete ") and has_permission(author_id, 'exam.delete'):
                 return self.add_exam(*comargs, **kwargs)
-            elif message == '!clear' and has_permission(author_id, 'db'):
+            elif message == '!clear' and has_permission(author_id, 'db.clear'):
                 return self.clear_db(*comargs, **kwargs)
-            elif message == '!killbot' and has_permission(author_id, 'help'):
+            elif message == '!killbot' and has_permission(author_id, 'bot.kill'):
                 send_static("KILLED")
                 self.logout()
                 raise BotExit("Killed by {}, message: \"{}\" in {} ({})".format(
@@ -149,50 +149,69 @@ class AdminBot(Client):
 
     def add_exam(self, author_id, message, thread_id, thread_type, **kwargs):
         send, send_static, send_static_list = kwargs["helper_send_functions"]
-        params = [p.strip() for p in message[4:].split(";")]
-        if len(params) < 4:
-            send_static("ERROR_NOT_ENOUGH_PARAMS")
+        try:
+            date, subject, topic = [p.strip()
+                                    for p in message[len("!add "):].split(";")]
+        except ValueError as e:
+            send_static("ERROR_PARAMS_COUNT")
             send_static("HELP_SUGGESTION")
             print("Failed to add test by {} in {} ({}): {}".format(
                 author_id, thread_id, thread_type, message))
-            return False
-        params.insert(3, None)
+            raise e
+
         try:
-            date = datetime.datetime.strptime(
-                '{} {}'.format(params[1], params[2]), "%d %m")
-        except ValueError:
+            date = datetime.datetime.strptime(date, "%d.%m")
+        except ValueError as e:
             send_static("ERROR_INVALID_DATE")
-            print("Failed to add test by {} in {} (GROUP): {}".format(
-                author_id, thread_id, message))
-            return False
+            print("Failed to add test by {} in {} ({}): {}".format(
+                author_id, thread_id, thread_type, message))
+            raise e
         if date < datetime.datetime.now():
             date = date.replace(
                 year=datetime.datetime.now().year, hour=23, minute=59)
         if date < datetime.datetime.now():
-            date = date.replace(year=datetime.datetime.now().year + 1)
-        params[1], params[2], params[3] = date.strftime("%d;%m;%Y").split(";")
-        with open('data.csv', 'a', newline='') as file:
-            writer = csv.writer(file, delimiter=';')
-            writer.writerow(params)
+            date = date.replace(year=date.year + 1)
+        date = date.strftime("%d.%m.%Y")
+        try:
+            with open('data.json', 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            data = []
+        data.append({"date": date, "subject": subject, "topic": topic})
+        with open('data.json', 'w+', encoding='utf-8') as f:
+            json.dump(data, f)
         send_static("TEST_ADD_SUCCESS")
-        print("Test added by {} in {} (GROUP): {}".format(
-            author_id, thread_id, message))
+        print("Test added by {} in {} ({}): {}".format(
+            author_id, thread_id, thread_type, message))
         return True
 
     def clear_db(self, author_id, message, thread_id, thread_type, **kwargs):
         send, send_static, send_static_list = kwargs["helper_send_functions"]
-        data = []
-        with open('data.csv', 'r', newline='') as file:
-            reader = csv.reader(file, delimiter=';')
-            for row in reader:
-                if datetime.datetime.strptime("{} {} {}".format(row[1], row[2], row[3]), "%d %m %Y") > datetime.datetime.now() - datetime.timedelta(days=14):
-                    data.append(row)
-        with open('data.csv', 'w', newline='') as file:
-            writer = csv.writer(file, delimiter=';')
-            for row in data:
-                writer.writerow(row)
-        send_static("TEST_CLEAR_2W_SUCCESS")
-        print("Tests older than 14 days have been deleted")
+        try:
+            days, confirmation = [p.strip()
+                                  for p in message[len("!clear "):].split(";")]
+            days = int(days)
+            if confirmation != "sure":
+                print("Failed to clear database by {} in {} ({}): {}".format(
+                    author_id, thread_id, thread_type, message))
+                return False
+        except ValueError as e:
+            send_static("ERROR_PARAMS_COUNT")
+            send_static("HELP_SUGGESTION")
+            print("Failed to clear database by {} in {} ({}): {}".format(
+                author_id, thread_id, thread_type, message))
+            raise e
+        try:
+            with open('data.json', 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            data = []
+        data = [entry for entry in data if datetime.datetime.strptime(
+            entry['date'], "%d.%m.%Y") > datetime.datetime.now() - datetime.timedelta(days=days)]
+        with open('data.json', 'w+', encoding='utf-8') as f:
+            json.dump(data, f)
+        send_static("DB_CLEAR_SUCCESS", days=days)
+        print("Tests older than {} days have been deleted".format(days))
         return True
 
     def test_inform(self, author_id, message, thread_id, thread_type, **kwargs):
@@ -201,18 +220,22 @@ class AdminBot(Client):
             print("Not informed {} about tests! (antispam is active)".format(thread_id))
             return False
         self.last_sent_time = datetime.datetime.now()
-        data = []
-        with open('data.csv', 'r', newline='') as file:
-            reader = csv.reader(file, delimiter=';')
-            for row in reader:
-                if datetime.datetime.strptime("{} {} {}".format(row[1], row[2], row[3]), "%d %m %Y") < datetime.datetime.now() + datetime.timedelta(days=30) and datetime.datetime.strptime("{} {} {}".format(row[1], row[2], row[3]), "%d %m %Y") > datetime.datetime.now():
-                    data.append(row)
-        data.sort(key=lambda row: datetime.datetime.strptime(
-            "{} {} {}".format(row[1], row[2], row[3]), "%d %m %Y"), reverse=False)
-        data = ["• " + " • ".join(row[:3] + row[4:]) for row in data]
-        print(data)
-        data = "\n".join(data)
-        print(data)
+        try:
+            with open('data.json', 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            data = []
+        if not data:
+            send_static("TEST_INFORM_NONE")
+            print("Informed {} about tests!".format(thread_id))
+            return True
+        data.sort(key=lambda entry: datetime.datetime.strptime(
+            entry["date"], "%d.%m.%Y"), reverse=False)
+        data = "\n".join(["• {} • {} • {}".format(
+            datetime.datetime.strptime(
+                entry['date'], "%d.%m.%Y").strftime("%d.%m"),
+            entry["subject"],
+            entry["topic"]) for entry in data])
         send_static("TEST_INFORM", data=data)
         print("Informed {} about tests!".format(thread_id))
         return True
