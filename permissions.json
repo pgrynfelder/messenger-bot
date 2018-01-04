@@ -1,0 +1,13 @@
+{
+  "users": {
+    "head_admin_user_id": {
+      "role": "admin",
+      "extended_permissions": ["*"]
+    }
+  },
+  "roles": {
+    "admin": {
+      "permissions": ["exam.*", "help"]
+    }
+  }
+}
