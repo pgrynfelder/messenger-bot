@@ -1,5 +1,3 @@
-# -*- coding: UTF-8 -*-
-
 from fbchat import Client, logging
 import json
 import datetime
@@ -15,12 +13,13 @@ STATIC = {
         "HELP_SUGGESTION": "Wpisz !help by otrzymać pomoc.",
         "ERROR_PARAMS_COUNT": "Wprowadzono złą ilość parametrów.",
         "ERROR_INVALID_DATE": "Wprowadzona data jest niepoprawna.",
-        "TEST_ADD_SUCCESS": "Pomyślnie dodano test.",
-        "TEST_INFORM_NONE": "• Sprawdziany na 30 dni\n\nYaaay, w najbliższym czasie nie ma żadnych sprawdzianów!",
+        "EXAM_ADD_SUCCESS": "Pomyślnie dodano test.",
+        "EXAM_INFORM_NONE": "• Sprawdziany na 30 dni\n\nYaaay, w najbliższym czasie nie ma żadnych sprawdzianów!",
+        "EXAM_INFORM": "• Sprawdziany na 30 dni\n\n{data}",
         "DB_CLEAR_SUCCESS": "Testy wcześniejsze niż {days} dni temu zostały usunięte.",
-        "TEST_INFORM": "• Sprawdziany na 30 dni\n\n{data}",
         "MARKOV_RESULT": "{user}: {result}",
-        "KILLED": "Bot został wyłączony."
+        "KILLED": "Bot został wyłączony.",
+        "PERMISSIONS_USER_ADD": "Pomyślnie dodano użytkownika {user} do grupy {group} (dodatkowe permisje: {additional})"
     }
 }
 
@@ -31,7 +30,7 @@ class BotExit(Exception):
 
 class AdminBot(Client):
 
-    def __init__(self, *, login="", password="", credentials_f="", language="PL", logging_level=logging.INFO):
+    def __init__(self, *, login="", password="", credentials_f="", language="PL", logging_level=logging.WARNING):
         if login and password and credentials_f:
             if input("Do you want to remember your credentials? (y / n)") == "y":
                 with open(credentials_f, "w+", encoding="utf-8") as f:
@@ -59,14 +58,15 @@ class AdminBot(Client):
         self.language = language
         self.last_sent_time = datetime.datetime.now() - datetime.timedelta(minutes=5)
         self.permissions = {}
-        self.load_permissions("permissions.json")
+        self.load_permissions()
 
-    def load_permissions(self, filename):
+    def load_permissions(self):
+        filename = "permissions.json"
         self.permissions.clear()
         try:
             with open(filename, "r", encoding="utf-8") as f:
                 permission_data = json.load(f)
-        except FileNotFoundError:
+        except (FileNotFoundError, json.decoder.JSONDecodeError):
             with open(filename, "w+", encoding="utf-8") as f:
                 permission_data = {
                     "users": {
@@ -87,7 +87,43 @@ class AdminBot(Client):
             self.permissions[user] |= set(
                 permission_data["roles"][values["role"]])
 
-    def onMessage(self, author_id, message, thread_id, thread_type, **kwargs):
+    def permissions_user(self, author_id, message_object, thread_id, thread_type, **kwargs):
+        send, send_static, send_static_list = kwargs["helper_send_functions"]
+        try:
+            username, role, extended_permissions = [
+                p.strip() for p in (message_object.text[len("!permissions user add "):] + ";").split(";")]
+            username = username[1:]
+            extended_permissions = extended_permissions.strip(
+                "[").strip("]").split(",").replace("\"", "").replace("'", "")
+            if extended_permissions == ["None"] or ['']:
+                extended_permissions == []
+        except ValueError as e:
+            send_static("ERROR_PARAMS_COUNT")
+            send_static("HELP_SUGGESTION")
+            print("Failed to add user's permission by {} in {} ({}): {}".format(
+                author_id, thread_id, thread_type, message_object.text))
+            raise e
+        if len(message_object.mentions) == 1:
+            uid = message_object.mentions[0].thread_id
+        else:
+            send_static("ERROR_PARAMS_COUNT")
+            send_static("HELP_SUGGESTION")
+            print("Failed to add user's permission by {} in {} ({}): {}".format(
+                author_id, thread_id, thread_type, message_object.text))
+            raise ValueError("Bad count of mentions")
+
+        with open("permissions.json", "r", encoding="utf-8") as f:
+            permission_data = json.load(f)
+        permission_data["users"][uid] = {
+            "username": username, "extended_permissions": extended_permissions, "role": role}
+        with open("permissions.json", "w", encoding="utf-8") as f:
+            json.dump(permission_data, f)
+        self.load_permissions()
+        send_static("PERMISSIONS_USER_ADD", user=username,
+                    group=role, additional=", ".join[extended_permissions])
+        print("User {} added as {}.".format(username, role))
+
+    def onMessage(self, author_id, message_object, thread_id, thread_type, **kwargs):
         def send(string):
             return self.sendMessage(string, thread_id=thread_id, thread_type=thread_type)
 
@@ -117,46 +153,50 @@ class AdminBot(Client):
         kwargs_c = kwargs.copy()
         kwargs.update({"helper_send_functions": [
                       send, send_static, send_static_list]})
-        comargs = (author_id, message, thread_id, thread_type)
-        if author_id != self.uid:
-            if message.startswith("!markov ") and has_permission(author_id, 'markov'):
+        comargs = (author_id, message_object, thread_id, thread_type)
+        if author_id != self.uid and message_object.text:
+            if message_object.text.startswith("!markov ") and has_permission(author_id, 'markov'):
                 return self.run_markov(*comargs, **kwargs)
-            elif message == '!help' and has_permission(author_id, 'help'):
+            elif message_object.text == '!help' and has_permission(author_id, 'help'):
                 return self.show_help(*comargs, **kwargs)
-            elif message.startswith("!add ") and has_permission(author_id, 'exam.add'):
+            elif message_object.text.startswith("!add ") and has_permission(author_id, 'exam.add'):
                 return self.add_exam(*comargs, **kwargs)
-            elif message.startswith("!delete ") and has_permission(author_id, 'exam.delete'):
-                return self.add_exam(*comargs, **kwargs)
-            elif message == '!clear' and has_permission(author_id, 'db.clear'):
+            elif message_object.text.startswith("!delete ") and has_permission(author_id, 'exam.delete'):
+                pass
+                # return self.add_exam(*comargs, **kwargs)
+            elif message_object.text == '!clear' and has_permission(author_id, 'db.clear'):
                 return self.clear_db(*comargs, **kwargs)
-            elif message == '!killbot' and has_permission(author_id, 'bot.kill'):
+            elif message_object.text == '!killbot' and has_permission(author_id, 'bot.kill'):
                 send_static("KILLED")
                 self.logout()
-                raise BotExit("Killed by {}, message: \"{}\" in {} ({})".format(
-                    author_id, message, thread_id, thread_type))
+                raise BotExit("Killed by {}, message_object.text: \"{}\" in {} ({})".format(
+                    author_id, message_object.text, thread_id, thread_type))
+            elif message_object.text == "!permissions reload" and has_permission(author_id, 'permissions.reload'):
+                return self.load_permissions()
+            elif message_object.text.startswith("!permissions user add ") and has_permission(author_id, 'permissions.user'):
+                return self.permissions_user(*comargs, **kwargs)
+            elif "sprawdzian" in message_object.text:
+                return self.EXAM_INFORM(*comargs, **kwargs)
 
-            elif "sprawdzian" in message:
-                return self.test_inform(*comargs, **kwargs)
+        # return super().onMessage(author_id=author_id, message_object=message_object, thread_id=thread_id, thread_type=thread_type, **kwargs_c)
 
-        return super().onMessage(author_id=author_id, message=message, thread_id=thread_id, thread_type=thread_type, **kwargs_c)
-
-    def show_help(self, author_id, emssage, thread_id, thread_type, **kwargs):
+    def show_help(self, author_id, message_object, thread_id, thread_type, **kwargs):
         send, send_static, send_static_list = kwargs["helper_send_functions"]
         print("Demand for help from {} in {} ({}): !help".format(
             author_id, thread_type, thread_id))
         send_static_list("HELP_MESSAGE_LIST")
         return True
 
-    def add_exam(self, author_id, message, thread_id, thread_type, **kwargs):
+    def add_exam(self, author_id, message_object, thread_id, thread_type, **kwargs):
         send, send_static, send_static_list = kwargs["helper_send_functions"]
         try:
             date, subject, topic = [p.strip()
-                                    for p in message[len("!add "):].split(";")]
+                                    for p in message_object.text.text[len("!add "):].split(";")]
         except ValueError as e:
             send_static("ERROR_PARAMS_COUNT")
             send_static("HELP_SUGGESTION")
             print("Failed to add test by {} in {} ({}): {}".format(
-                author_id, thread_id, thread_type, message))
+                author_id, thread_id, thread_type, message_object.text))
             raise e
 
         try:
@@ -164,7 +204,7 @@ class AdminBot(Client):
         except ValueError as e:
             send_static("ERROR_INVALID_DATE")
             print("Failed to add test by {} in {} ({}): {}".format(
-                author_id, thread_id, thread_type, message))
+                author_id, thread_id, thread_type, message_object.text))
             raise e
         if date < datetime.datetime.now():
             date = date.replace(
@@ -180,26 +220,26 @@ class AdminBot(Client):
         data.append({"date": date, "subject": subject, "topic": topic})
         with open('data.json', 'w+', encoding='utf-8') as f:
             json.dump(data, f)
-        send_static("TEST_ADD_SUCCESS")
+        send_static("EXAM_ADD_SUCCESS")
         print("Test added by {} in {} ({}): {}".format(
-            author_id, thread_id, thread_type, message))
+            author_id, thread_id, thread_type, message_object.text))
         return True
 
-    def clear_db(self, author_id, message, thread_id, thread_type, **kwargs):
+    def clear_db(self, author_id, message_object, thread_id, thread_type, **kwargs):
         send, send_static, send_static_list = kwargs["helper_send_functions"]
         try:
             days, confirmation = [p.strip()
-                                  for p in message[len("!clear "):].split(";")]
+                                  for p in message_object.text[len("!clear "):].split(";")]
             days = int(days)
             if confirmation != "sure":
                 print("Failed to clear database by {} in {} ({}): {}".format(
-                    author_id, thread_id, thread_type, message))
+                    author_id, thread_id, thread_type, message_object.text))
                 return False
         except ValueError as e:
             send_static("ERROR_PARAMS_COUNT")
             send_static("HELP_SUGGESTION")
             print("Failed to clear database by {} in {} ({}): {}".format(
-                author_id, thread_id, thread_type, message))
+                author_id, thread_id, thread_type, message_object.text))
             raise e
         try:
             with open('data.json', 'r', encoding='utf-8') as f:
@@ -214,9 +254,9 @@ class AdminBot(Client):
         print("Tests older than {} days have been deleted".format(days))
         return True
 
-    def test_inform(self, author_id, message, thread_id, thread_type, **kwargs):
+    def EXAM_INFORM(self, author_id, message_object, thread_id, thread_type, **kwargs):
         send, send_static, send_static_list = kwargs["helper_send_functions"]
-        if self.last_sent_time > datetime.datetime.now() - datetime.timedelta(minutes=5) and message != "!sprawdziany":
+        if self.last_sent_time > datetime.datetime.now() - datetime.timedelta(minutes=5) and message_object.text != "!sprawdziany":
             print("Not informed {} about tests! (antispam is active)".format(thread_id))
             return False
         self.last_sent_time = datetime.datetime.now()
@@ -226,7 +266,7 @@ class AdminBot(Client):
         except FileNotFoundError:
             data = []
         if not data:
-            send_static("TEST_INFORM_NONE")
+            send_static("EXAM_INFORM_NONE")
             print("Informed {} about tests!".format(thread_id))
             return True
         data.sort(key=lambda entry: datetime.datetime.strptime(
@@ -236,13 +276,13 @@ class AdminBot(Client):
                 entry['date'], "%d.%m.%Y").strftime("%d.%m"),
             entry["subject"],
             entry["topic"]) for entry in data])
-        send_static("TEST_INFORM", data=data)
+        send_static("EXAM_INFORM", data=data)
         print("Informed {} about tests!".format(thread_id))
         return True
 
-    def run_markov(self, author_id, message, thread_id, thread_type, **kwargs):
+    def run_markov(self, author_id, message_object, thread_id, thread_type, **kwargs):
         # send, send_static, send_static_list = kwargs["helper_send_functions"]
-        # target = message[len("!markov"):].strip()
+        # target = message_object.text[len("!markov"):].strip()
         # result = ""
         # send_static(MARKOV_RESULT, target, result)
         return True
