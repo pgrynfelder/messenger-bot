@@ -19,7 +19,8 @@ STATIC = {
         "DB_CLEAR_SUCCESS": "Testy wcześniejsze niż {days} dni temu zostały usunięte.",
         "MARKOV_RESULT": "{user}: {result}",
         "KILLED": "Bot został wyłączony.",
-        "PERMISSIONS_USER_ADD": "Pomyślnie dodano użytkownika {user} do grupy {group} (dodatkowe permisje: {additional})"
+        "PERMISSIONS_USERS_ADD": "Pomyślnie dodano użytkownika {user} do grupy {group} (dodatkowe permisje: {additional})"
+        "PERMISSIONS_USERS_LIST": "• Użytkownicy\n\n{data}"
     }
 }
 
@@ -119,11 +120,18 @@ class AdminBot(Client):
         with open("permissions.json", "w", encoding="utf-8") as f:
             json.dump(permission_data, f)
         self.load_permissions()
-        send_static("PERMISSIONS_USER_ADD", user=username,
+        send_static("PERMISSIONS_USERS_ADD", user=username,
                     group=role, additional=", ".join[extended_permissions])
         print("User {} added as {}.".format(username, role))
+        return True
 
-    def permissions_users_add(self, author_id, message_object, thread_id, thread_type, **kwargs):
+    def permissions_users_list(self, author_id, message_object, thread_id, thread_type, **kwargs):
+        with open("permissions.json", "r", encoding="utf-8") as f:
+            permission_data = json.load(f)
+        data = "\n".join(" • {} • {} • {} • {}".format(uid, user["username"], user["role"], ", ".join(user["extended_permissions"])) for uid, user in permission_data.items())
+        send_static("PERMISSIONS_USERS_LIST", data=data)
+        print("Listed users in {}".format(thread_id))
+        return True
 
     def onMessage(self, author_id, message_object, thread_id, thread_type, **kwargs):
         def send(string):
