@@ -128,7 +128,8 @@ class AdminBot(Client):
     def permissions_users_list(self, author_id, message_object, thread_id, thread_type, **kwargs):
         with open("permissions.json", "r", encoding="utf-8") as f:
             permission_data = json.load(f)
-        data = "\n".join(" • {} • {} • {} • {}".format(uid, user["username"], user["role"], ", ".join(user["extended_permissions"])) for uid, user in permission_data.items())
+        users = permission_data["users"]
+        data = "\n".join(" • {} • {} • {} • {}".format(uid, user["username"], user["role"], ", ".join(user["extended_permissions"])) for uid, user in users.items())
         send_static("PERMISSIONS_USERS_LIST", data=data)
         print("Listed users in {}".format(thread_id))
         return True
@@ -185,7 +186,7 @@ class AdminBot(Client):
                 return self.load_permissions()
             elif message_object.text.startswith("!users add ") and has_permission(author_id, 'permissions.users.add'):
                 return self.permissions_users_add(*comargs, **kwargs)
-            elif message_object.text.startswith("!users list ") and has_permission(author_id, 'permissions.users.list'):
+            elif message_object.text.startswith("!users list") and has_permission(author_id, 'permissions.users.list'):
                 return self.permissions_users_list(*comargs, **kwargs)
             elif message_object.text.startswith("!users delete ") and has_permission(author_id, 'permissions.users.delete'):
                 return self.permissions_users_delete(*comargs, **kwargs)
