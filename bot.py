@@ -19,7 +19,8 @@ STATIC = {
         "DB_CLEAR_SUCCESS": "Testy wcześniejsze niż {days} dni temu zostały usunięte.",
         "MARKOV_RESULT": "{user}: {result}",
         "KILLED": "Bot został wyłączony.",
-        "PERMISSIONS_USER_ADD": "Pomyślnie dodano użytkownika {user} do grupy {group} (dodatkowe permisje: {additional})"
+        "PERMISSIONS_USERS_ADD": "Pomyślnie dodano użytkownika {user} do grupy {group} (dodatkowe permisje: {additional})",
+        "PERMISSIONS_USERS_LIST": "• Użytkownicy\n\n{data}"
     }
 }
 
@@ -72,7 +73,8 @@ class AdminBot(Client):
                     "users": {
                         input("Input the headadmin's UID: "): {
                             "role": "admin",
-                            "extended_permissions": ["*"]
+                            "extended_permissions": ["*"],
+                            "username":"headadmin"
                         }
                     },
                     "roles": {
@@ -87,11 +89,11 @@ class AdminBot(Client):
             self.permissions[user] |= set(
                 permission_data["roles"][values["role"]])
 
-    def permissions_user(self, author_id, message_object, thread_id, thread_type, **kwargs):
+    def permissions_users_add(self, author_id, message_object, thread_id, thread_type, **kwargs):
         send, send_static, send_static_list = kwargs["helper_send_functions"]
         try:
             username, role, extended_permissions = [
-                p.strip() for p in (message_object.text[len("!permissions user add "):] + ";").split(";")]
+                p.strip() for p in (message_object.text[len("!users add "):] + ";").split(";")]
             username = username[1:]
             extended_permissions = extended_permissions.strip(
                 "[").strip("]").split(",").replace("\"", "").replace("'", "")
@@ -119,9 +121,23 @@ class AdminBot(Client):
         with open("permissions.json", "w", encoding="utf-8") as f:
             json.dump(permission_data, f)
         self.load_permissions()
-        send_static("PERMISSIONS_USER_ADD", user=username,
+        send_static("PERMISSIONS_USERS_ADD", user=username,
                     group=role, additional=", ".join[extended_permissions])
         print("User {} added as {}.".format(username, role))
+        return True
+
+    def permissions_users_list(self, author_id, message_object, thread_id, thread_type, **kwargs):
+        send, send_static, send_static_list = kwargs["helper_send_functions"]
+        with open("permissions.json", "r", encoding="utf-8") as f:
+            permission_data = json.load(f)
+        users = permission_data["users"]
+        print(users)
+        data = [(uid, users[uid]["username"], users[uid]["role"], ", ".join(users[uid]["extended_permissions"])) for uid in users]
+        data = sorted(data, key=lambda user: user[1])
+        data = "\n".join(["• {} • {} • {} • {}".format(*user) for user in data])
+        send_static("PERMISSIONS_USERS_LIST", data=data)
+        print("Listed users in {}".format(thread_id))
+        return True
 
     def onMessage(self, author_id, message_object, thread_id, thread_type, **kwargs):
         def send(string):
@@ -173,8 +189,12 @@ class AdminBot(Client):
                     author_id, message_object.text, thread_id, thread_type))
             elif message_object.text == "!permissions reload" and has_permission(author_id, 'permissions.reload'):
                 return self.load_permissions()
-            elif message_object.text.startswith("!permissions user add ") and has_permission(author_id, 'permissions.user'):
-                return self.permissions_user(*comargs, **kwargs)
+            elif message_object.text.startswith("!users add ") and has_permission(author_id, 'permissions.users.add'):
+                return self.permissions_users_add(*comargs, **kwargs)
+            elif message_object.text.startswith("!users list") and has_permission(author_id, 'permissions.users.list'):
+                return self.permissions_users_list(*comargs, **kwargs)
+            elif message_object.text.startswith("!users delete ") and has_permission(author_id, 'permissions.users.delete'):
+                return self.permissions_users_delete(*comargs, **kwargs)
             elif "sprawdzian" in message_object.text:
                 return self.EXAM_INFORM(*comargs, **kwargs)
 
