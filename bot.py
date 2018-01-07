@@ -19,7 +19,7 @@ STATIC = {
         "DB_CLEAR_SUCCESS": "Testy wcześniejsze niż {days} dni temu zostały usunięte.",
         "MARKOV_RESULT": "{user}: {result}",
         "KILLED": "Bot został wyłączony.",
-        "PERMISSIONS_USERS_ADD": "Pomyślnie dodano użytkownika {user} do grupy {group} (dodatkowe permisje: {additional})"
+        "PERMISSIONS_USERS_ADD": "Pomyślnie dodano użytkownika {user} do grupy {group} (dodatkowe permisje: {additional})",
         "PERMISSIONS_USERS_LIST": "• Użytkownicy\n\n{data}"
     }
 }
