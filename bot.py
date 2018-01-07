@@ -73,7 +73,8 @@ class AdminBot(Client):
                     "users": {
                         input("Input the headadmin's UID: "): {
                             "role": "admin",
-                            "extended_permissions": ["*"]
+                            "extended_permissions": ["*"],
+                            "username":"headadmin"
                         }
                     },
                     "roles": {
@@ -126,10 +127,14 @@ class AdminBot(Client):
         return True
 
     def permissions_users_list(self, author_id, message_object, thread_id, thread_type, **kwargs):
+        send, send_static, send_static_list = kwargs["helper_send_functions"]
         with open("permissions.json", "r", encoding="utf-8") as f:
             permission_data = json.load(f)
         users = permission_data["users"]
-        data = "\n".join(" • {} • {} • {} • {}".format(uid, user["username"], user["role"], ", ".join(user["extended_permissions"])) for uid, user in users.items())
+        print(users)
+        data = [(uid, users[uid]["username"], users[uid]["role"], ", ".join(users[uid]["extended_permissions"])) for uid in users]
+        data = sorted(data, key=lambda user: user[1])
+        data = "\n".join(["• {} • {} • {} • {}".format(*user) for user in data])
         send_static("PERMISSIONS_USERS_LIST", data=data)
         print("Listed users in {}".format(thread_id))
         return True
