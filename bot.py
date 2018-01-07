@@ -95,8 +95,8 @@ class AdminBot(Client):
             username, role, extended_permissions = [
                 p.strip() for p in (message_object.text[len("!users add "):] + ";").split(";")]
             username = username[1:]
-            extended_permissions = extended_permissions.strip(
-                "[").strip("]").split(",").replace("\"", "").replace("'", "")
+            extended_permissions = [x.strip(
+                "[").strip("]").split(",").replace("\"", "").replace("'", "") for x in extended_permissions]
             if extended_permissions == ["None"] or ['']:
                 extended_permissions == []
         except ValueError as e:
@@ -122,7 +122,7 @@ class AdminBot(Client):
             json.dump(permission_data, f)
         self.load_permissions()
         send_static("PERMISSIONS_USERS_ADD", user=username,
-                    group=role, additional=", ".join[extended_permissions])
+                    group=role, additional=", ".join(extended_permissions))
         print("User {} added as {}.".format(username, role))
         return True
 
