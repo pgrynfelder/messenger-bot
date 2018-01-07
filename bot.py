@@ -91,7 +91,7 @@ class AdminBot(Client):
         send, send_static, send_static_list = kwargs["helper_send_functions"]
         try:
             username, role, extended_permissions = [
-                p.strip() for p in (message_object.text[len("!permissions user add "):] + ";").split(";")]
+                p.strip() for p in (message_object.text[len("!users add "):] + ";").split(";")]
             username = username[1:]
             extended_permissions = extended_permissions.strip(
                 "[").strip("]").split(",").replace("\"", "").replace("'", "")
@@ -173,8 +173,10 @@ class AdminBot(Client):
                     author_id, message_object.text, thread_id, thread_type))
             elif message_object.text == "!permissions reload" and has_permission(author_id, 'permissions.reload'):
                 return self.load_permissions()
-            elif message_object.text.startswith("!permissions user add ") and has_permission(author_id, 'permissions.user'):
-                return self.permissions_user(*comargs, **kwargs)
+            elif message_object.text.startswith("!users add ") and has_permission(author_id, 'permissions.users.add'):
+                return self.permissions_users_add(*comargs, **kwargs)
+            elif message_object.text.startswith("!users delete ") and has_permission(author_id, 'permissions.users.delete'):
+                return self.permissions_users_delete(*comargs, **kwargs)
             elif "sprawdzian" in message_object.text:
                 return self.EXAM_INFORM(*comargs, **kwargs)
 
