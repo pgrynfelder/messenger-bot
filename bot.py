@@ -87,7 +87,7 @@ class AdminBot(Client):
             self.permissions[user] |= set(
                 permission_data["roles"][values["role"]])
 
-    def permissions_user(self, author_id, message_object, thread_id, thread_type, **kwargs):
+    def permissions_user_add(self, author_id, message_object, thread_id, thread_type, **kwargs):
         send, send_static, send_static_list = kwargs["helper_send_functions"]
         try:
             username, role, extended_permissions = [
@@ -175,6 +175,8 @@ class AdminBot(Client):
                 return self.load_permissions()
             elif message_object.text.startswith("!users add ") and has_permission(author_id, 'permissions.users.add'):
                 return self.permissions_users_add(*comargs, **kwargs)
+            elif message_object.text.startswith("!users list ") and has_permission(author_id, 'permissions.users.list'):
+                return self.permissions_users_list(*comargs, **kwargs)
             elif message_object.text.startswith("!users delete ") and has_permission(author_id, 'permissions.users.delete'):
                 return self.permissions_users_delete(*comargs, **kwargs)
             elif "sprawdzian" in message_object.text:
