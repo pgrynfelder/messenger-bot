@@ -87,7 +87,7 @@ class AdminBot(Client):
             self.permissions[user] |= set(
                 permission_data["roles"][values["role"]])
 
-    def permissions_user_add(self, author_id, message_object, thread_id, thread_type, **kwargs):
+    def permissions_users_add(self, author_id, message_object, thread_id, thread_type, **kwargs):
         send, send_static, send_static_list = kwargs["helper_send_functions"]
         try:
             username, role, extended_permissions = [
@@ -122,6 +122,8 @@ class AdminBot(Client):
         send_static("PERMISSIONS_USER_ADD", user=username,
                     group=role, additional=", ".join[extended_permissions])
         print("User {} added as {}.".format(username, role))
+
+    def permissions_users_add(self, author_id, message_object, thread_id, thread_type, **kwargs):
 
     def onMessage(self, author_id, message_object, thread_id, thread_type, **kwargs):
         def send(string):
