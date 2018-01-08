@@ -211,7 +211,7 @@ class AdminBot(Client):
         send, send_static, send_static_list = kwargs["helper_send_functions"]
         try:
             date, subject, topic = [p.strip()
-                                    for p in message_object.text.text[len("!add "):].split(";")]
+                                    for p in message_object.text[len("!add "):].split(";")]
         except ValueError as e:
             send_static("ERROR_PARAMS_COUNT")
             send_static("HELP_SUGGESTION")
