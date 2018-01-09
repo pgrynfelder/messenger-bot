@@ -196,7 +196,7 @@ class AdminBot(Client):
             elif message_object.text.startswith("!users delete ") and has_permission(author_id, 'permissions.users.delete'):
                 return self.permissions_users_delete(*comargs, **kwargs)
             elif "sprawdzian" in message_object.text:
-                return self.EXAM_INFORM(*comargs, **kwargs)
+                return self.exam_inform(*comargs, **kwargs)
 
         # return super().onMessage(author_id=author_id, message_object=message_object, thread_id=thread_id, thread_type=thread_type, **kwargs_c)
 
@@ -274,7 +274,7 @@ class AdminBot(Client):
         print("Tests older than {} days have been deleted".format(days))
         return True
 
-    def EXAM_INFORM(self, author_id, message_object, thread_id, thread_type, **kwargs):
+    def exam_inform(self, author_id, message_object, thread_id, thread_type, **kwargs):
         send, send_static, send_static_list = kwargs["helper_send_functions"]
         if self.last_sent_time > datetime.datetime.now() - datetime.timedelta(minutes=5) and message_object.text != "!sprawdziany":
             print("Not informed {} about tests! (antispam is active)".format(thread_id))
