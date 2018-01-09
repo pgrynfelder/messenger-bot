@@ -289,6 +289,7 @@ class AdminBot(Client):
             send_static("EXAM_INFORM_NONE")
             print("Informed {} about tests!".format(thread_id))
             return True
+        data = [x for x in data if datetime.datetime.strptime(x["date"], "%d.%m.%Y") > datetime.datetime.now()]
         data.sort(key=lambda entry: datetime.datetime.strptime(
             entry["date"], "%d.%m.%Y"), reverse=False)
         data = "\n".join(["• {} • {} • {}".format(
