@@ -61,6 +61,70 @@ class AdminBot(Client):
         self.permissions = {}
         self.load_permissions()
 
+
+    def onMessage(self, author_id, message_object, thread_id, thread_type, **kwargs):
+        def send(string):
+            return self.sendMessage(string, thread_id=thread_id, thread_type=thread_type)
+
+        def send_static(name, *format_args, **format_kwargs):
+            return send(STATIC[self.language][name].format(*format_args, **format_kwargs))
+
+        def send_static_list(list_name, *format_args, **format_kwargs):
+            for string in STATIC[self.language][list_name]:
+                send(string.format(*format_args, **format_kwargs))
+
+        def has_permission(author_id, permission):
+            required = permission.split(".")
+            for saved in self.permissions[author_id]:
+                saved = saved.split(".")
+                for x, y in zip(required, saved):
+                    if y == "*":
+                        return True
+                    elif x == y:
+                        matches = True
+                    else:
+                        matches = False
+                        break
+                if matches:
+                    return True
+            print("Insufficient permissions to use help\n")
+            print(self.permissions[author_id])
+            return False
+
+        kwargs_c = kwargs.copy()
+        kwargs.update({"helper_send_functions": [
+                      send, send_static, send_static_list]})
+        comargs = (author_id, message_object, thread_id, thread_type)
+        if author_id != self.uid and message_object.text:
+            if message_object.text.startswith("!markov ") and has_permission(author_id, 'markov'):
+                return self.run_markov(*comargs, **kwargs)
+            elif message_object.text == '!help' and has_permission(author_id, 'help'):
+                return self.show_help(*comargs, **kwargs)
+            elif message_object.text.startswith("!add ") and has_permission(author_id, 'exam.add'):
+                return self.add_exam(*comargs, **kwargs)
+            elif message_object.text.startswith("!delete ") and has_permission(author_id, 'exam.delete'):
+                pass
+                # return self.add_exam(*comargs, **kwargs)
+            elif message_object.text == '!clear' and has_permission(author_id, 'db.clear'):
+                return self.clear_db(*comargs, **kwargs)
+            elif message_object.text == '!killbot' and has_permission(author_id, 'bot.kill'):
+                send_static("KILLED")
+                self.logout()
+                raise BotExit("Killed by {}, message_object.text: \"{}\" in {} ({})".format(
+                    author_id, message_object.text, thread_id, thread_type))
+            elif message_object.text == "!permissions reload" and has_permission(author_id, 'permissions.reload'):
+                return self.load_permissions()
+            elif message_object.text.startswith("!users add ") and has_permission(author_id, 'permissions.users.add'):
+                return self.permissions_users_add(*comargs, **kwargs)
+            elif message_object.text.startswith("!users list") and has_permission(author_id, 'permissions.users.list'):
+                return self.permissions_users_list(*comargs, **kwargs)
+            elif message_object.text.startswith("!users delete ") and has_permission(author_id, 'permissions.users.delete'):
+                return self.permissions_users_delete(*comargs, **kwargs)
+            elif "sprawdzian" in message_object.text:
+                return self.exam_inform(*comargs, **kwargs)
+
+        # return super().onMessage(author_id=author_id, message_object=message_object, thread_id=thread_id, thread_type=thread_type, **kwargs_c)
+
     def load_permissions(self):
         filename = "permissions.json"
         self.permissions.clear()
@@ -87,7 +151,7 @@ class AdminBot(Client):
         for user, values in permission_data["users"].items():
             self.permissions[user] = set(values["extended_permissions"])
             self.permissions[user] |= set(
-                permission_data["roles"][values["role"]])
+                permission_data["roles"][values["role"]]["permissions"])
 
     def permissions_users_add(self, author_id, message_object, thread_id, thread_type, **kwargs):
         send, send_static, send_static_list = kwargs["helper_send_functions"]
@@ -139,66 +203,6 @@ class AdminBot(Client):
         print("Listed users in {}".format(thread_id))
         return True
 
-    def onMessage(self, author_id, message_object, thread_id, thread_type, **kwargs):
-        def send(string):
-            return self.sendMessage(string, thread_id=thread_id, thread_type=thread_type)
-
-        def send_static(name, *format_args, **format_kwargs):
-            return send(STATIC[self.language][name].format(*format_args, **format_kwargs))
-
-        def send_static_list(list_name, *format_args, **format_kwargs):
-            for string in STATIC[self.language][list_name]:
-                send(string.format(*format_args, **format_kwargs))
-
-        def has_permission(author_id, permission):
-            required = permission.split(".")
-            for saved in self.permissions[author_id]:
-                saved = saved.split(".")
-                for x, y in zip(required, saved):
-                    if y == "*":
-                        return True
-                    elif x == y:
-                        matches = True
-                    else:
-                        matches = False
-                        break
-                if matches:
-                    return True
-            return False
-
-        kwargs_c = kwargs.copy()
-        kwargs.update({"helper_send_functions": [
-                      send, send_static, send_static_list]})
-        comargs = (author_id, message_object, thread_id, thread_type)
-        if author_id != self.uid and message_object.text:
-            if message_object.text.startswith("!markov ") and has_permission(author_id, 'markov'):
-                return self.run_markov(*comargs, **kwargs)
-            elif message_object.text == '!help' and has_permission(author_id, 'help'):
-                return self.show_help(*comargs, **kwargs)
-            elif message_object.text.startswith("!add ") and has_permission(author_id, 'exam.add'):
-                return self.add_exam(*comargs, **kwargs)
-            elif message_object.text.startswith("!delete ") and has_permission(author_id, 'exam.delete'):
-                pass
-                # return self.add_exam(*comargs, **kwargs)
-            elif message_object.text == '!clear' and has_permission(author_id, 'db.clear'):
-                return self.clear_db(*comargs, **kwargs)
-            elif message_object.text == '!killbot' and has_permission(author_id, 'bot.kill'):
-                send_static("KILLED")
-                self.logout()
-                raise BotExit("Killed by {}, message_object.text: \"{}\" in {} ({})".format(
-                    author_id, message_object.text, thread_id, thread_type))
-            elif message_object.text == "!permissions reload" and has_permission(author_id, 'permissions.reload'):
-                return self.load_permissions()
-            elif message_object.text.startswith("!users add ") and has_permission(author_id, 'permissions.users.add'):
-                return self.permissions_users_add(*comargs, **kwargs)
-            elif message_object.text.startswith("!users list") and has_permission(author_id, 'permissions.users.list'):
-                return self.permissions_users_list(*comargs, **kwargs)
-            elif message_object.text.startswith("!users delete ") and has_permission(author_id, 'permissions.users.delete'):
-                return self.permissions_users_delete(*comargs, **kwargs)
-            elif "sprawdzian" in message_object.text:
-                return self.exam_inform(*comargs, **kwargs)
-
-        # return super().onMessage(author_id=author_id, message_object=message_object, thread_id=thread_id, thread_type=thread_type, **kwargs_c)
 
     def show_help(self, author_id, message_object, thread_id, thread_type, **kwargs):
         send, send_static, send_static_list = kwargs["helper_send_functions"]
