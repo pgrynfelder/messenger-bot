@@ -208,6 +208,8 @@ class AdminBot(Client):
         send_static("PERMISSIONS_USERS_LIST", data=data)
         print("Listed users in {}".format(thread_id))
         return True
+
+
     def show_help(self, author_id, message_object, thread_id, thread_type, **kwargs):
         send, send_static, send_static_list = kwargs["helper_send_functions"]
         print("Demand for help from {} in {} ({}): !help".format(
