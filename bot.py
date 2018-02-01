@@ -31,7 +31,7 @@ class BotExit(Exception):
 
 class AdminBot(Client):
 
-    def __init__(self, *, login="", password="", credentials_f="", language="PL", logging_level=logging.WARNING):
+    def __init__(self, *, login="", password="", credentials_f="", language="PL", logging_level=logging.INFO):
         if login and password and credentials_f:
             if input("Do you want to remember your credentials? (y / n)") == "y":
                 with open(credentials_f, "w+", encoding="utf-8") as f:
@@ -75,6 +75,8 @@ class AdminBot(Client):
 
         def has_permission(author_id, permission):
             required = permission.split(".")
+            if required == "":
+                return True
             for saved in self.permissions[author_id]:
                 saved = saved.split(".")
                 for x, y in zip(required, saved):
@@ -87,8 +89,6 @@ class AdminBot(Client):
                         break
                 if matches:
                     return True
-            print("Insufficient permissions to use help\n")
-            print(self.permissions[author_id])
             return False
 
         kwargs_c = kwargs.copy()
@@ -101,12 +101,9 @@ class AdminBot(Client):
             elif message_object.text == '!help' and has_permission(author_id, 'help'):
                 return self.show_help(*comargs, **kwargs)
             elif message_object.text.startswith("!add ") and has_permission(author_id, 'exam.add'):
-                return self.add_exam(*comargs, **kwargs)
-            elif message_object.text.startswith("!delete ") and has_permission(author_id, 'exam.delete'):
-                pass
-                # return self.add_exam(*comargs, **kwargs)
+                return self.exam_add(*comargs, **kwargs)
             elif message_object.text == '!clear' and has_permission(author_id, 'db.clear'):
-                return self.clear_db(*comargs, **kwargs)
+                return self.db_clear(*comargs, **kwargs)
             elif message_object.text == '!killbot' and has_permission(author_id, 'bot.kill'):
                 send_static("KILLED")
                 self.logout()
@@ -118,12 +115,21 @@ class AdminBot(Client):
                 return self.permissions_users_add(*comargs, **kwargs)
             elif message_object.text.startswith("!users list") and has_permission(author_id, 'permissions.users.list'):
                 return self.permissions_users_list(*comargs, **kwargs)
-            elif message_object.text.startswith("!users delete ") and has_permission(author_id, 'permissions.users.delete'):
-                return self.permissions_users_delete(*comargs, **kwargs)
             elif "sprawdzian" in message_object.text:
                 return self.exam_inform(*comargs, **kwargs)
 
         # return super().onMessage(author_id=author_id, message_object=message_object, thread_id=thread_id, thread_type=thread_type, **kwargs_c)
+
+    def _onMessage(self, author_id, message_object, thread_id, thread_type, **kwargs):
+        commands = [("!markov", "markov", self.run_markov),
+                    ("!help", "help", self.show_help),
+                    ("!add", "exam.add", self.exam_add),
+                    ("!clear", "db.clear", self.db_clear),
+                    ("!bot kill", "bot.kill", self.bot_kill),
+                    ("!permissions reload", "permissions.reload", self.load_permissions),
+                    ("!users add", "permissions.user.add", self.permissions_user_add),
+                    ("!users list", "permissions.user.list", self.permissions_user_list),
+                    ("!sprawdziany", "", self.exam_inform)]
 
     def load_permissions(self):
         filename = "permissions.json"
@@ -211,7 +217,7 @@ class AdminBot(Client):
         send_static_list("HELP_MESSAGE_LIST")
         return True
 
-    def add_exam(self, author_id, message_object, thread_id, thread_type, **kwargs):
+    def exam_add(self, author_id, message_object, thread_id, thread_type, **kwargs):
         send, send_static, send_static_list = kwargs["helper_send_functions"]
         try:
             date, subject, topic = [p.strip()
@@ -249,7 +255,7 @@ class AdminBot(Client):
             author_id, thread_id, thread_type, message_object.text))
         return True
 
-    def clear_db(self, author_id, message_object, thread_id, thread_type, **kwargs):
+    def db_clear(self, author_id, message_object, thread_id, thread_type, **kwargs):
         send, send_static, send_static_list = kwargs["helper_send_functions"]
         try:
             days, confirmation = [p.strip()
