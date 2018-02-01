@@ -7,7 +7,10 @@ STATIC = {
         "HELP_MESSAGE_LIST": [
             "Witaj w pomocy!",
             "Dodawanie sprawdzianu: !add <dd.mm>; <przedmiot>; <temat (ew. zagadnienia)>",
-            "Czyszczenia bazy danych: !clear <dni>; <potwierdzenie: sure>- wyczyszczone zostaną wszystkie dane starsze niż dana ilość dni",
+            "Czyszczenie bazy danych: !clear <dni>; <potwierdzenie: sure>- wyczyszczone zostaną wszystkie dane starsze niż dana ilość dni",
+            "Dodawanie użytkownika: !user add @uzytkownik; ranga; dodatkowe, uprawnienia (po przecinkach lub [\"...\", \"...\", ...])",
+            "Wyświetlanie listy użytkowników: !users list",
+            "Przeładownie danych uprawnień: !permissions reload",
             "https://github.com/pitek1/messenger-bot/"
         ],
         "HELP_SUGGESTION": "Wpisz !help by otrzymać pomoc.",
@@ -19,8 +22,9 @@ STATIC = {
         "DB_CLEAR_SUCCESS": "Testy wcześniejsze niż {days} dni temu zostały usunięte.",
         "MARKOV_RESULT": "{user}: {result}",
         "KILLED": "Bot został wyłączony.",
-        "PERMISSIONS_USERS_ADD": "Pomyślnie dodano użytkownika {user} do grupy {group} (dodatkowe permisje: {additional})",
-        "PERMISSIONS_USERS_LIST": "• Użytkownicy\n\n{data}"
+        "PERMISSIONS_USERS_ADD": "Pomyślnie dodano użytkownika {user} do grupy {group} (dodatkowe uprawnienia: {additional})",
+        "PERMISSIONS_USERS_LIST": "• Użytkownicy\n\n{data}",
+        "PERMISSIONS_NOT_ENOUGH": "Nie masz wystarczających uprawnień aby użyć tej komendy."
     }
 }
 
@@ -59,10 +63,19 @@ class AdminBot(Client):
         self.language = language
         self.last_sent_time = datetime.datetime.now() - datetime.timedelta(minutes=5)
         self.permissions = {}
-        self.load_permissions()
-
+        self._permissions_load()
 
     def onMessage(self, author_id, message_object, thread_id, thread_type, **kwargs):
+        commands = [("!markov", "markov", self.run_markov),
+                    ("!help", "help", self.show_help),
+                    ("!clear", "db.clear", self.db_clear),
+                    ("!bot kill", "bot.kill", self.bot_kill),
+                    ("!permissions reload", "permissions.reload", self.permissions_reload),
+                    ("!users add", "permissions.users.add", self.permissions_users_add),
+                    ("!users list", "permissions.users.list", self.permissions_users_list),
+                    ("!add", "exam.add", self.exam_add),
+                    ("!sprawdziany", "", self.exam_inform)]
+
         def send(string):
             return self.sendMessage(string, thread_id=thread_id, thread_type=thread_type)
 
@@ -95,43 +108,33 @@ class AdminBot(Client):
         kwargs.update({"helper_send_functions": [
                       send, send_static, send_static_list]})
         comargs = (author_id, message_object, thread_id, thread_type)
-        if author_id != self.uid and message_object.text:
-            if message_object.text.startswith("!markov ") and has_permission(author_id, 'markov'):
-                return self.run_markov(*comargs, **kwargs)
-            elif message_object.text == '!help' and has_permission(author_id, 'help'):
-                return self.show_help(*comargs, **kwargs)
-            elif message_object.text.startswith("!add ") and has_permission(author_id, 'exam.add'):
-                return self.exam_add(*comargs, **kwargs)
-            elif message_object.text == '!clear' and has_permission(author_id, 'db.clear'):
-                return self.db_clear(*comargs, **kwargs)
-            elif message_object.text == '!killbot' and has_permission(author_id, 'bot.kill'):
-                send_static("KILLED")
-                self.logout()
-                raise BotExit("Killed by {}, message_object.text: \"{}\" in {} ({})".format(
-                    author_id, message_object.text, thread_id, thread_type))
-            elif message_object.text == "!permissions reload" and has_permission(author_id, 'permissions.reload'):
-                return self.load_permissions()
-            elif message_object.text.startswith("!users add ") and has_permission(author_id, 'permissions.users.add'):
-                return self.permissions_users_add(*comargs, **kwargs)
-            elif message_object.text.startswith("!users list") and has_permission(author_id, 'permissions.users.list'):
-                return self.permissions_users_list(*comargs, **kwargs)
-            elif "sprawdzian" in message_object.text:
+        if author_id != self.uid:
+            for command, permission, function in commands:
+                if message_object.text.startswith(command):
+                    if has_permission(author_id, permission):
+                        if function(*comargs, **kwargs):
+                            print("Successfully executed {} in {} by {}".format(message_object.text, thread_id, author_id))
+                            return True
+                        else:
+                            print("Something went wrong with {} in {} by {}".format(message_object.text, thread_id, author_id))
+                            return False
+                    else:
+                        send_static("PERMISSIONS_NOT_ENOUGH")
+                        return False
+
+            if "sprawdzian" in message_object.text.lower():
                 return self.exam_inform(*comargs, **kwargs)
 
-        # return super().onMessage(author_id=author_id, message_object=message_object, thread_id=thread_id, thread_type=thread_type, **kwargs_c)
 
-    def _onMessage(self, author_id, message_object, thread_id, thread_type, **kwargs):
-        commands = [("!markov", "markov", self.run_markov),
-                    ("!help", "help", self.show_help),
-                    ("!add", "exam.add", self.exam_add),
-                    ("!clear", "db.clear", self.db_clear),
-                    ("!bot kill", "bot.kill", self.bot_kill),
-                    ("!permissions reload", "permissions.reload", self.load_permissions),
-                    ("!users add", "permissions.user.add", self.permissions_user_add),
-                    ("!users list", "permissions.user.list", self.permissions_user_list),
-                    ("!sprawdziany", "", self.exam_inform)]
 
-    def load_permissions(self):
+    def bot_kill(self, author_id, message_object, thread_id, thread_type, **kwargs):
+        send, send_static, send_static_list = kwargs["helper_send_functions"]
+        send_static("KILLED")
+        self.logout()
+        raise BotExit("Killed by {}, message_object.text: \"{}\" in {} ({})".format(
+            author_id, message_object.text, thread_id, thread_type))
+
+    def _permissions_load(self):
         filename = "permissions.json"
         self.permissions.clear()
         try:
@@ -158,6 +161,11 @@ class AdminBot(Client):
             self.permissions[user] = set(values["extended_permissions"])
             self.permissions[user] |= set(
                 permission_data["roles"][values["role"]]["permissions"])
+        return True
+
+    def permissions_reload(self, author_id, message_object, thread_id, thread_type, **kwargs):
+        send, send_static, send_static_list = kwargs["helper_send_functions"]
+        return _load_permissions(self)
 
     def permissions_users_add(self, author_id, message_object, thread_id, thread_type, **kwargs):
         send, send_static, send_static_list = kwargs["helper_send_functions"]
