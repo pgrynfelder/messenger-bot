@@ -21,10 +21,12 @@ STATIC = {
         "EXAM_INFORM": "• Sprawdziany na 30 dni\n\n{data}",
         "DB_CLEAR_SUCCESS": "Testy wcześniejsze niż {days} dni temu zostały usunięte.",
         "MARKOV_RESULT": "{user}: {result}",
-        "KILLED": "Bot został wyłączony.",
+        "KILLED": "Bot został zabity.",
         "PERMISSIONS_USERS_ADD": "Pomyślnie dodano użytkownika {user} do grupy {group} (dodatkowe uprawnienia: {additional})",
         "PERMISSIONS_USERS_LIST": "• Użytkownicy\n\n{data}",
-        "PERMISSIONS_NOT_ENOUGH": "Nie masz wystarczających uprawnień aby użyć tej komendy."
+        "PERMISSIONS_NOT_ENOUGH": "Nie masz wystarczających uprawnień aby użyć tej komendy.",
+        "BOT_ON": "Bot został włączony.",
+        "BOT_OFF": "Bot został wyłączony."
     }
 }
 
@@ -60,16 +62,19 @@ class AdminBot(Client):
             password = input("Input password: ")
 
         super().__init__(login, password, logging_level=logging_level)
+        self.should_listen = True
         self.language = language
         self.last_sent_time = datetime.datetime.now() - datetime.timedelta(minutes=5)
         self.permissions = {}
         self._permissions_load()
 
     def onMessage(self, author_id, message_object, thread_id, thread_type, **kwargs):
+        SHOULD_LISTEN_OVERRIDE = object()
         commands = [("!markov", "markov", self.run_markov),
                     ("!help", "help", self.show_help),
                     ("!clear", "db.clear", self.db_clear),
-                    ("!bot kill", "bot.kill", self.bot_kill),
+                    ("!bot kill", "bot.kill", self.bot_kill, SHOULD_LISTEN_OVERRIDE),
+                    ("!bot toggle", "bot.toggle", self.bot_toggle, SHOULD_LISTEN_OVERRIDE),
                     ("!permissions reload", "permissions.reload", self.permissions_reload),
                     ("!users add", "permissions.users.add", self.permissions_users_add),
                     ("!users list", "permissions.users.list", self.permissions_users_list),
@@ -109,28 +114,30 @@ class AdminBot(Client):
                       send, send_static, send_static_list]})
         comargs = (author_id, message_object, thread_id, thread_type)
         if author_id != self.uid:
-            for command, permission, function in commands:
-                if message_object.text.startswith(command):
+            for command, permission, function, *others in commands:
+                if message_object.text.startswith(command) and (self.should_listen or others[0] is SHOULD_LISTEN_OVERRIDE):
                     if has_permission(author_id, permission):
                         if function(*comargs, **kwargs):
-                            print("Successfully executed {} in {} by {}".format(message_object.text, thread_id, author_id))
+                            print("Successfully executed {} in {} by {}".format(
+                                message_object.text, thread_id, author_id))
                             return True
                         else:
-                            print("Something went wrong with {} in {} by {}".format(message_object.text, thread_id, author_id))
+                            print("Something went wrong with {} in {} by {}".format(
+                                message_object.text, thread_id, author_id))
                             return False
                     else:
                         send_static("PERMISSIONS_NOT_ENOUGH")
                         return False
-
-            if "sprawdzian" in message_object.text.lower():
+            # WEIRD EXCEPIONS
+            if "sprawdzian" in message_object.text.lower() and (self.should_listen or others[0] is SHOULD_LISTEN_OVERRIDE):
                 return self.exam_inform(*comargs, **kwargs)
-
-
+            return False
 
     def bot_kill(self, author_id, message_object, thread_id, thread_type, **kwargs):
         send, send_static, send_static_list = kwargs["helper_send_functions"]
         send_static("KILLED")
         self.logout()
+        self.listening = False
         raise BotExit("Killed by {}, message_object.text: \"{}\" in {} ({})".format(
             author_id, message_object.text, thread_id, thread_type))
 
@@ -147,7 +154,7 @@ class AdminBot(Client):
                         input("Input the headadmin's UID: "): {
                             "role": "admin",
                             "extended_permissions": ["*"],
-                            "username":"headadmin"
+                            "username": "headadmin"
                         }
                     },
                     "roles": {
@@ -165,7 +172,7 @@ class AdminBot(Client):
 
     def permissions_reload(self, author_id, message_object, thread_id, thread_type, **kwargs):
         send, send_static, send_static_list = kwargs["helper_send_functions"]
-        return _load_permissions(self)
+        return self._permissions_load()
 
     def permissions_users_add(self, author_id, message_object, thread_id, thread_type, **kwargs):
         send, send_static, send_static_list = kwargs["helper_send_functions"]
@@ -210,13 +217,14 @@ class AdminBot(Client):
             permission_data = json.load(f)
         users = permission_data["users"]
         print(users)
-        data = [(uid, users[uid]["username"], users[uid]["role"], ", ".join(users[uid]["extended_permissions"])) for uid in users]
+        data = [(uid, users[uid]["username"], users[uid]["role"], ", ".join(
+            users[uid]["extended_permissions"])) for uid in users]
         data = sorted(data, key=lambda user: user[1])
-        data = "\n".join(["• {} • {} • {} • {}".format(*user) for user in data])
+        data = "\n".join(["• {} • {} • {} • {}".format(*user)
+                          for user in data])
         send_static("PERMISSIONS_USERS_LIST", data=data)
         print("Listed users in {}".format(thread_id))
         return True
-
 
     def show_help(self, author_id, message_object, thread_id, thread_type, **kwargs):
         send, send_static, send_static_list = kwargs["helper_send_functions"]
@@ -307,7 +315,8 @@ class AdminBot(Client):
             send_static("EXAM_INFORM_NONE")
             print("Informed {} about tests!".format(thread_id))
             return True
-        data = [x for x in data if datetime.datetime.strptime(x["date"], "%d.%m.%Y") > datetime.datetime.now()]
+        data = [x for x in data if datetime.datetime.strptime(
+            x["date"], "%d.%m.%Y") > datetime.datetime.now()]
         data.sort(key=lambda entry: datetime.datetime.strptime(
             entry["date"], "%d.%m.%Y"), reverse=False)
         data = "\n".join(["• {} • {} • {}".format(
@@ -324,6 +333,12 @@ class AdminBot(Client):
         # target = message_object.text[len("!markov"):].strip()
         # result = ""
         # send_static(MARKOV_RESULT, target, result)
+        return True
+
+    def bot_toggle(self, author_id, message_object, thread_id, thread_type, **kwargs):
+        send, send_static, send_static_list = kwargs["helper_send_functions"]
+        self.should_listen = not self.should_listen
+        send_static("BOT_ON" if self.should_listen else "BOT_OFF")
         return True
 
 
