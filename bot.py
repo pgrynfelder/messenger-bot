@@ -92,21 +92,24 @@ class AdminBot(Client):
                 send(string.format(*format_args, **format_kwargs))
 
         def has_permission(author_id, permission):
-            required = permission.split(".")
-            if required == "":
+            if permission == "":
                 return True
-            for saved in self.permissions[author_id]:
-                saved = saved.split(".")
-                for x, y in zip(required, saved):
-                    if y == "*":
+            required = permission.split(".")
+            try:
+                for saved in self.permissions[author_id]:
+                    saved = saved.split(".")
+                    for x, y in zip(required, saved):
+                        if y == "*":
+                            return True
+                        elif x == y:
+                            matches = True
+                        else:
+                            matches = False
+                            break
+                    if matches:
                         return True
-                    elif x == y:
-                        matches = True
-                    else:
-                        matches = False
-                        break
-                if matches:
-                    return True
+            except KeyError:
+                return False
             return False
 
         kwargs_c = kwargs.copy()
@@ -115,7 +118,7 @@ class AdminBot(Client):
         comargs = (author_id, message_object, thread_id, thread_type)
         if author_id != self.uid:
             for command, permission, function, *others in commands:
-                if message_object.text.startswith(command) and (self.should_listen or others[0] is SHOULD_LISTEN_OVERRIDE):
+                if message_object.text.startswith(command) and (self.should_listen or SHOULD_LISTEN_OVERRIDE in others):
                     if has_permission(author_id, permission):
                         if function(*comargs, **kwargs):
                             print("Successfully executed {} in {} by {}".format(
@@ -128,9 +131,9 @@ class AdminBot(Client):
                     else:
                         send_static("PERMISSIONS_NOT_ENOUGH")
                         return False
-            # WEIRD EXCEPIONS
-            if "sprawdzian" in message_object.text.lower() and (self.should_listen or others[0] is SHOULD_LISTEN_OVERRIDE):
-                return self.exam_inform(*comargs, **kwargs)
+                # WEIRD EXCEPIONS
+                if "sprawdzian" in message_object.text.lower() and self.should_listen:
+                    return self.exam_inform(*comargs, **kwargs)
             return False
 
     def bot_kill(self, author_id, message_object, thread_id, thread_type, **kwargs):
